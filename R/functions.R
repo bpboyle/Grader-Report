@@ -301,10 +301,13 @@ render_pdf_report <- function(grades, level = c("undergraduate", "masters"),
 
   rmarkdown::render(
     input       = tmp_rmd,
-    output_file = output_path,
+    output_file = "report.pdf",
+    output_dir  = tmp_dir,
     envir       = render_env,
     quiet       = TRUE
   )
+
+  file.copy(file.path(tmp_dir, "report.pdf"), output_path, overwrite = TRUE)
 
   # Clean up temp dir (output_path is outside it, so this is safe)
   unlink(tmp_dir, recursive = TRUE)
