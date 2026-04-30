@@ -254,7 +254,7 @@ render_pdf_report <- function(grades, level = c("undergraduate", "masters"),
     paste0('subtitle: "', level_label, ' --- ', format(Sys.Date(), "%d %B %Y"), '"'),
     'output:',
     '  pdf_document:',
-    '    latex_engine: pdflatex',   # pdflatex: no system fonts needed
+    '    latex_engine: pdflatex',
     '    toc: false',
     '    keep_tex: false',
     'geometry: "margin=2cm"',
@@ -263,7 +263,6 @@ render_pdf_report <- function(grades, level = c("undergraduate", "masters"),
     '',
     '```{r setup, include=FALSE}',
     'knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)',
-    'source("R/functions.R")',
     '```',
     '',
     '## Grade Distributions',
@@ -294,9 +293,14 @@ render_pdf_report <- function(grades, level = c("undergraduate", "masters"),
   ), tmp_rmd)
 
   render_env <- list2env(
-    list(report_data  = grades,
-         report_level = level),
-    parent = baseenv()
+    list(
+      report_data        = grades,
+      report_level       = level,
+      build_grade_plots  = build_grade_plots,
+      build_band_table   = build_band_table,
+      build_summary_stats = build_summary_stats
+    ),
+    parent = globalenv()
   )
 
   rmarkdown::render(
@@ -304,11 +308,10 @@ render_pdf_report <- function(grades, level = c("undergraduate", "masters"),
     output_file = "report.pdf",
     output_dir  = tmp_dir,
     envir       = render_env,
-    quiet       = TRUE
+    quiet       = FALSE
   )
 
   file.copy(file.path(tmp_dir, "report.pdf"), output_path, overwrite = TRUE)
 
-  # Clean up temp dir (output_path is outside it, so this is safe)
   unlink(tmp_dir, recursive = TRUE)
 }
