@@ -26,27 +26,23 @@ ui <- page_sidebar(
       accept   = ".csv",
       multiple = FALSE
     ),
+        helpText("File should be a .csv with two columns."),
     helpText("Required columns: ", code("grader"), ", ", code("grade")),
-
+   helpText("Please anonymise graders by assigning numbers or using initials. Do not include any identifiable student or module information."),
     hr(),
 
     # --- Study level toggle -------------------------------------------------
     radioButtons(
       "study_level",
-      label   = "Study level",
-      choices = c("Undergraduate" = "undergraduate",
-                  "Masters"       = "masters"),
+      label    = "Study level",
+      choices  = c("Undergraduate" = "undergraduate",
+                   "Masters"       = "masters"),
       selected = "undergraduate",
       inline   = TRUE
     ),
     helpText(
       uiOutput("fail_threshold_text")
     ),
-
-    hr(),
-
-    # --- Grader filter (rendered dynamically after upload) ------------------
-    uiOutput("grader_filter_ui"),
 
     hr(),
 
@@ -74,27 +70,25 @@ server <- function(input, output, session) {
   output$fail_threshold_text <- renderUI({
     if (level() == "masters") {
       tags$span(style = "color:#555;",
-                "Fail: < 50",    tags$br(),
-                "Pass: 50-59",   tags$br(),
-                "Merit: 60-69",  tags$br(),
+                "Fail: < 50",   tags$br(),
+                "Pass: 50-59",  tags$br(),
+                "Merit: 60-69", tags$br(),
                 "Distinction: 70+")
     } else {
       tags$span(style = "color:#555;",
-                "Fail: < 40",  tags$br(),
-                "3rd: 40-49",  tags$br(),
-                "2:2: 50-59",  tags$br(),
-                "2:1: 60-69",  tags$br(),
+                "Fail: < 40", tags$br(),
+                "3rd: 40-49", tags$br(),
+                "2:2: 50-59", tags$br(),
+                "2:1: 60-69", tags$br(),
                 "1st: 70+")
     }
   })
 
-  # --- Reactive: load CSV (re-runs only when a new file is uploaded) --------
+  # --- Reactive: load CSV --------------------------------------------------
   grades_raw <- reactive({
     req(input$csv_file)
     withCallingHandlers(
       tryCatch(
-        # Load without band classification — we apply that separately so the
-        # level toggle can update bands without re-reading from disk
         {
           df <- tryCatch(
             read.csv(input$csv_file$datapath, stringsAsFactors = FALSE),
@@ -120,36 +114,16 @@ server <- function(input, output, session) {
     )
   })
 
-  # --- Reactive: apply band classification (re-runs on level toggle too) ----
+  # --- Reactive: apply band classification ---------------------------------
   grades <- reactive({
     req(grades_raw())
     reclassify_bands(grades_raw(), level())
   })
 
-  # --- Reactive: grader names -----------------------------------------------
-  grader_names <- reactive({
+  # --- Reactive: number of graders (for plot height) -----------------------
+  n_graders <- reactive({
     req(grades())
-    sort(unique(grades()$grader))
-  })
-
-  # --- Dynamic grader checkboxes -------------------------------------------
-  output$grader_filter_ui <- renderUI({
-    req(grader_names())
-    tagList(
-      strong("Show graders"),
-      checkboxGroupInput(
-        "selected_graders",
-        label    = NULL,
-        choices  = grader_names(),
-        selected = grader_names()
-      )
-    )
-  })
-
-  # --- Reactive: filtered data ----------------------------------------------
-  grades_filtered <- reactive({
-    req(grades(), input$selected_graders)
-    dplyr::filter(grades(), grader %in% input$selected_graders)
+    length(unique(grades()$grader))
   })
 
   # --- Main content ---------------------------------------------------------
@@ -164,38 +138,53 @@ server <- function(input, output, session) {
       )
     } else {
       navset_card_tab(
-        nav_panel("Distributions", plotOutput("grade_plot", height = "auto")),
+        nav_panel("Distributions",
+                  div(style = "display:flex; align-items:flex-start; gap:16px; max-width:900px;",
+                      # Left: All Graders — fixed height, wider to accommodate legend
+                      div(style = "flex:0 0 auto; width:440px;",
+                          plotOutput("combined_plot", height = "320px")),
+                      # Right: per-grader — narrower (no legend), taller scroll window
+                      div(style = "flex:1 1 auto; overflow-y:auto; max-height:560px;",
+                          plotOutput("grader_plots", height = "auto"))
+                  )),
         nav_panel("Band Summary",  tableOutput("band_table")),
         nav_panel("Statistics",    tableOutput("stats_table"))
       )
     }
   })
 
-  # --- Plots ----------------------------------------------------------------
-  output$grade_plot <- renderPlot({
-    req(grades_filtered())
-    validate(need(nrow(grades_filtered()) > 0, "No data for selected graders."))
-    build_grade_plots(grades_filtered(), level = level())
+  # --- Combined plot (left, fixed height) -----------------------------------
+  output$combined_plot <- renderPlot({
+    req(grades())
+    validate(need(nrow(grades()) > 0, "No data to display."))
+    build_combined_plot(grades(), level = level())
+  }, width = 400, height = 300)
+
+  # --- Per-grader plots (right, scrollable) ---------------------------------
+  output$grader_plots <- renderPlot({
+    req(grades())
+    validate(need(nrow(grades()) > 0, "No data to display."))
+    build_grader_plots(grades(), level = level())
   },
-  width  = 600,
+  width  = function() 400,
   height = function() {
-    n <- length(input$selected_graders %||% 1)
-    280 * (n + 1)
+    req(n_graders())
+    250 * n_graders()
   })
 
   # --- Band table -----------------------------------------------------------
   output$band_table <- renderTable({
-    req(grades_filtered())
-    validate(need(nrow(grades_filtered()) > 0, "No data for selected graders."))
-    build_band_table(grades_filtered(), level = level())
+    req(grades())
+    validate(need(nrow(grades()) > 0, "No data to display."))
+    build_band_table(grades(), level = level())
   },
   striped = TRUE, hover = TRUE, bordered = TRUE)
 
   # --- Stats table ----------------------------------------------------------
   output$stats_table <- renderTable({
-    req(grades_filtered())
-    validate(need(nrow(grades_filtered()) > 0, "No data for selected graders."))
-    build_summary_stats(grades_filtered())
+    req(grades())
+    validate(need(nrow(grades()) > 0, "No data to display."))
+    build_summary_stats(grades())
   },
   striped = TRUE, hover = TRUE, bordered = TRUE)
 
@@ -205,13 +194,13 @@ server <- function(input, output, session) {
       paste0("grade_report_", format(Sys.Date(), "%Y%m%d"), ".pdf")
     },
     content = function(file) {
-      req(grades_filtered())
-      validate(need(nrow(grades_filtered()) > 0, "No data to report."))
+      req(grades())
+      validate(need(nrow(grades()) > 0, "No data to report."))
 
       withProgress(message = "Rendering PDF...", value = 0.5, {
         tryCatch(
           render_pdf_report(
-            grades      = grades_filtered(),
+            grades      = grades(),
             level       = level(),
             output_path = file
           ),

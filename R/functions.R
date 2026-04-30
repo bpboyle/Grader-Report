@@ -137,7 +137,7 @@ build_band_table <- function(grades, level = c("undergraduate", "masters")) {
 # Summary statistics ---------------------------------------------------------
 
 build_summary_stats <- function(grades) {
-  bind_rows(grades, mutate(grades, grader = "All Graders")) |>
+  bind_rows(mutate(grades, grader = "All Graders"), grades) |>
     group_by(grader) |>
     summarise(
       N      = n(),
@@ -168,11 +168,12 @@ BAND_COLOUR_MAP <- c(
 )
 
 plot_grades <- function(dat, lab, ymax, xmin = 0, xmax = 100,
-                        level = c("undergraduate", "masters")) {
+                        level = c("undergraduate", "masters"),
+                        show_legend = TRUE) {
   lvls    <- band_levels(match.arg(level))
   colours <- BAND_COLOUR_MAP[lvls]
 
-  ggplot(dat, aes(x = grade, fill = band)) +
+  p <- ggplot(dat, aes(x = grade, fill = band)) +
     geom_histogram(binwidth = 1) +
     scale_y_continuous(
       limits = c(0, ymax),
@@ -194,32 +195,71 @@ plot_grades <- function(dat, lab, ymax, xmin = 0, xmax = 100,
       legend.text       = element_text(size = 13)
     ) +
     labs(title = lab, x = "Grade", y = "Count", fill = "Band")
+
+  if (!show_legend) p <- p + theme(legend.position = "none",
+                                    plot.margin = margin(t = 5, r = 5, b = 20, l = 5))
+  p
 }
 
-build_grade_plots <- function(grades, level = c("undergraduate", "masters")) {
-  level        <- match.arg(level)
-  grader_names <- sort(unique(grades$grader))
+build_combined_plot <- function(grades, level = c("undergraduate", "masters")) {
+  level <- match.arg(level)
 
   ymax <- grades |>
-    count(grade) |>
-    pull(n) |>
-    max() |>
+    count(grade) |> pull(n) |> max() |>
     (\(x) ceiling(x / 5) * 5)()
 
   xmin <- floor(min(grades$grade)  / 5) * 5
   xmax <- ceiling(max(grades$grade) / 5) * 5
 
-  combined_plot <- plot_grades(grades,
-                               lab = "All Graders",
+  plot_grades(grades, lab = "All Graders",
+              ymax = ymax, xmin = xmin, xmax = xmax,
+              level = level, show_legend = TRUE) +
+    theme(legend.position = "bottom")
+}
+
+build_grader_plots <- function(grades, level = c("undergraduate", "masters")) {
+  level        <- match.arg(level)
+  grader_names <- sort(unique(grades$grader))
+
+  ymax <- grades |>
+    count(grade) |> pull(n) |> max() |>
+    (\(x) ceiling(x / 5) * 5)()
+
+  xmin <- floor(min(grades$grade)  / 5) * 5
+  xmax <- ceiling(max(grades$grade) / 5) * 5
+
+  grader_names |>
+    map(\(g) plot_grades(filter(grades, grader == g),
+                         lab = g, ymax = ymax, xmin = xmin, xmax = xmax,
+                         level = level, show_legend = FALSE)) |>
+    wrap_plots(ncol = 1)
+}
+
+# Keep build_grade_plots for PDF (combined layout in one figure)
+build_grade_plots <- function(grades, level = c("undergraduate", "masters")) {
+  level        <- match.arg(level)
+  grader_names <- sort(unique(grades$grader))
+
+  ymax <- grades |>
+    count(grade) |> pull(n) |> max() |>
+    (\(x) ceiling(x / 5) * 5)()
+
+  xmin <- floor(min(grades$grade)  / 5) * 5
+  xmax <- ceiling(max(grades$grade) / 5) * 5
+
+  combined_plot <- plot_grades(grades, lab = "All Graders",
                                ymax = ymax, xmin = xmin, xmax = xmax,
-                               level = level)
+                               level = level, show_legend = TRUE) +
+    theme(legend.position = "bottom")
 
   grader_plots <- grader_names |>
     map(\(g) plot_grades(filter(grades, grader == g),
                          lab = g, ymax = ymax, xmin = xmin, xmax = xmax,
-                         level = level))
+                         level = level, show_legend = FALSE))
 
-  wrap_plots(c(list(combined_plot), grader_plots), ncol = 1)
+  right_col <- wrap_plots(grader_plots, ncol = 1)
+
+  combined_plot | right_col
 }
 
 
@@ -241,7 +281,7 @@ render_pdf_report <- function(grades, level = c("undergraduate", "masters"),
   level       <- match.arg(level)
   level_label <- if (level == "masters") "Masters" else "Undergraduate"
 
-  fig_height <- 3.5 * (length(unique(grades$grader)) + 1)   # inches
+  fig_height <- max(4, 3.5 * length(unique(grades$grader)))   # right col drives height
 
   # Render into a session-specific temp dir so concurrent users don't collide
   tmp_dir <- tempfile()
@@ -267,7 +307,7 @@ render_pdf_report <- function(grades, level = c("undergraduate", "masters"),
     '',
     '## Grade Distributions',
     '',
-    paste0('```{r distributions, fig.width=6, fig.height=', fig_height, ', out.width="100%"}'),
+    paste0('```{r distributions, fig.width=10, fig.height=', fig_height, ', out.width="100%"}'),
     'print(build_grade_plots(report_data, level = report_level))',
     '```',
     '',
@@ -294,10 +334,10 @@ render_pdf_report <- function(grades, level = c("undergraduate", "masters"),
 
   render_env <- list2env(
     list(
-      report_data        = grades,
-      report_level       = level,
-      build_grade_plots  = build_grade_plots,
-      build_band_table   = build_band_table,
+      report_data         = grades,
+      report_level        = level,
+      build_grade_plots   = build_grade_plots,
+      build_band_table    = build_band_table,
       build_summary_stats = build_summary_stats
     ),
     parent = globalenv()
