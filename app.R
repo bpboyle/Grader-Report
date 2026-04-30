@@ -74,12 +74,17 @@ server <- function(input, output, session) {
   output$fail_threshold_text <- renderUI({
     if (level() == "masters") {
       tags$span(style = "color:#555;",
-                icon("info-circle"),
-                "\nFail <50\nPass 50-59\nMerit 60-69\nDistinction 70+")
+                "Fail: < 50",    tags$br(),
+                "Pass: 50-59",   tags$br(),
+                "Merit: 60-69",  tags$br(),
+                "Distinction: 70+")
     } else {
       tags$span(style = "color:#555;",
-                icon("info-circle"),
-                "\nFail <40\n3rd 40-49\n2:2 50-59\n2:1 60-69\n1st 70+")
+                "Fail: < 40",  tags$br(),
+                "3rd: 40-49",  tags$br(),
+                "2:2: 50-59",  tags$br(),
+                "2:1: 60-69",  tags$br(),
+                "1st: 70+")
     }
   })
 
