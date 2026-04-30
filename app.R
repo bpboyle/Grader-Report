@@ -14,7 +14,7 @@ source("R/functions.R")
 
 ui <- page_sidebar(
   title = "Grade Distribution Report",
-  theme = bs_theme(bootswatch = "simplex"),
+  theme = bs_theme(bootswatch = "flatly"),
 
   sidebar = sidebar(
     width = 300,
@@ -177,9 +177,10 @@ server <- function(input, output, session) {
     validate(need(nrow(grades_filtered()) > 0, "No data for selected graders."))
     build_grade_plots(grades_filtered(), level = level())
   },
+  width  = 600,
   height = function() {
     n <- length(input$selected_graders %||% 1)
-    250 * (n + 1)
+    280 * (n + 1)
   })
 
   # --- Band table -----------------------------------------------------------

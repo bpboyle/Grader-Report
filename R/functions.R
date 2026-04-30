@@ -184,8 +184,15 @@ plot_grades <- function(dat, lab, ymax, xmin = 0, xmax = 100,
       oob    = scales::oob_keep
     ) +
     scale_fill_manual(values = colours, drop = FALSE) +
-    theme_minimal() +
-    theme(panel.grid.minor = element_blank()) +
+    theme_minimal(base_size = 16) +
+    theme(
+      panel.grid.minor  = element_blank(),
+      plot.title        = element_text(size = 18, face = "bold"),
+      axis.title        = element_text(size = 15),
+      axis.text         = element_text(size = 13),
+      legend.title      = element_text(size = 14),
+      legend.text       = element_text(size = 13)
+    ) +
     labs(title = lab, x = "Grade", y = "Count", fill = "Band")
 }
 
@@ -261,7 +268,7 @@ render_pdf_report <- function(grades, level = c("undergraduate", "masters"),
     '',
     '## Grade Distributions',
     '',
-    paste0('```{r distributions, fig.width=9, fig.height=', fig_height, ', out.width="100%"}'),
+    paste0('```{r distributions, fig.width=6, fig.height=', fig_height, ', out.width="100%"}'),
     'print(build_grade_plots(report_data, level = report_level))',
     '```',
     '',
@@ -286,11 +293,16 @@ render_pdf_report <- function(grades, level = c("undergraduate", "masters"),
     '```'
   ), tmp_rmd)
 
+  render_env <- list2env(
+    list(report_data  = grades,
+         report_level = level),
+    parent = baseenv()
+  )
+
   rmarkdown::render(
     input       = tmp_rmd,
     output_file = output_path,
-    envir       = list(report_data  = grades,
-                       report_level = level),
+    envir       = render_env,
     quiet       = TRUE
   )
 
