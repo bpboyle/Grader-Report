@@ -14,7 +14,7 @@ source("R/functions.R")
 
 ui <- page_sidebar(
   title = "Grade Distribution Report",
-  theme = bs_theme(bootswatch = "flatly"),
+  theme = bs_theme(bootswatch = "simplex"),
 
   sidebar = sidebar(
     width = 300,
@@ -75,11 +75,11 @@ server <- function(input, output, session) {
     if (level() == "masters") {
       tags$span(style = "color:#555;",
                 icon("info-circle"),
-                " Fail <50, Pass 50-59, Merit 60-69, Distinction 70+")
+                "\nFail <50\nPass 50-59\nMerit 60-69\nDistinction 70+")
     } else {
       tags$span(style = "color:#555;",
                 icon("info-circle"),
-                " Fail <40, 3rd 40-49, 2:2 50-59, 2:1 60-69, 1st 70+")
+                "\nFail <40\n3rd 40-49\n2:2 50-59\n2:1 60-69\n1st 70+")
     }
   })
 
